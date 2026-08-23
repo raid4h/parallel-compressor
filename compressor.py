@@ -93,3 +93,124 @@ def compress_one_file(path):
 
         elapsed = time.time() - start
         return success, elapsed
+
+import threading
+import subprocess
+
+
+def compress_sequential(file_paths, event_queue=None):
+    """
+    BASELINE: compresses every file ONE AT A TIME, each via its own
+    fork()+exec()+wait() cycle, with no overlap between files at all.
+    """
+    start = time.time()
+    results = []
+
+    for path in file_paths:
+        success, elapsed = compress_one_file(path)
+        results.append((path, success, elapsed))
+        if event_queue:
+            event_queue.put({"type": "file_done", "mode": "sequential", "path": path,
+                              "success": success, "elapsed": elapsed})
+
+    total_duration = time.time() - start
+    return total_duration, results
+
+
+def compress_concurrent_fork(file_paths, max_workers, event_queue=None):
+    """
+    Compresses every file using a BOUNDED POOL of concurrent child
+    processes, each created via the SAME raw fork()+exec()+wait()
+    sequence as compress_one_file(). One Python THREAD is spawned per
+    file, but a real threading.Semaphore(max_workers) limits how many
+    of those threads may be actively inside their fork()+wait() cycle
+    (i.e., actually running a child process) at any one moment - this
+    is genuine, meaningful synchronization: it prevents the system
+    from being flooded with more concurrent gzip processes than
+    intended, exactly like the -j flag on real build tools such as
+    `make -j4`.
+    """
+    start = time.time()
+    semaphore = threading.Semaphore(max_workers)
+    results = []
+    # Protects the shared 'results' list, since multiple worker
+    # threads append to it concurrently once their file finishes.
+    results_lock = threading.Lock()
+
+    def worker(path):
+        semaphore.acquire()  # blocks here once max_workers children are already running
+        try:
+            success, elapsed = compress_one_file(path)  # real fork()+exec()+wait()
+            with results_lock:
+                results.append((path, success, elapsed))
+            if event_queue:
+                event_queue.put({"type": "file_done", "mode": "fork_pool", "path": path,
+                                  "success": success, "elapsed": elapsed})
+        finally:
+            # 'finally' guarantees the semaphore is released even if
+            # compress_one_file() raised an unexpected exception -
+            # otherwise a single failure could permanently reduce the
+            # pool's effective capacity for the rest of the run.
+            semaphore.release()
+
+    threads = [threading.Thread(target=worker, args=(path,)) for path in file_paths]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    total_duration = time.time() - start
+    return total_duration, results
+
+
+def compress_concurrent_subprocess(file_paths, max_workers, event_queue=None):
+    """
+    Same goal as compress_concurrent_fork(), but using Python's
+    subprocess module instead of raw os.fork()/os.execvp(). Included
+    specifically as a comparison: subprocess.Popen() calls fork()+exec()
+    INTERNALLY on Linux, so this measures the overhead of Python's
+    convenience wrapper over the same underlying system calls, not a
+    fundamentally different mechanism.
+
+    Uses a shared queue.Queue as the work list, drained by a fixed
+    pool of max_workers threads - the classic thread-pool pattern.
+    """
+    import queue
+
+    start = time.time()
+    work_queue = queue.Queue()
+    for path in file_paths:
+        work_queue.put(path)
+
+    results = []
+    results_lock = threading.Lock()
+
+    def worker():
+        while True:
+            try:
+                path = work_queue.get_nowait()
+            except queue.Empty:
+                return  # no files left - this worker thread is done
+
+            file_start = time.time()
+            # subprocess.Popen + .wait() is Python's higher-level
+            # equivalent of fork()+exec()+waitpid() combined.
+            proc = subprocess.Popen(["gzip", "-f", "-k", path])
+            proc.wait()
+            elapsed = time.time() - file_start
+            success = proc.returncode == 0
+
+            with results_lock:
+                results.append((path, success, elapsed))
+            if event_queue:
+                event_queue.put({"type": "file_done", "mode": "subprocess_pool", "path": path,
+                                  "success": success, "elapsed": elapsed})
+
+    threads = [threading.Thread(target=worker) for _ in range(max_workers)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    total_duration = time.time() - start
+    return total_duration, results
