@@ -23,6 +23,11 @@ from executor_compare import run_thread_pool_executor, run_process_pool_executor
 from compressor import compress_concurrent_fork, compress_concurrent_subprocess
 from priority import run_priority_race
 from scheduling_metrics import run_instrumented_pool, compute_scheduling_criteria
+import hashlib
+import block_compressor
+
+LARGE_FILE_PATH = os.path.expanduser("~/parallel-compressor/testdata_large/bigfile.txt")
+BLOCK_TEMP_DIR = os.path.expanduser("~/parallel-compressor/block_temp")
 
 
 def _section(title):
@@ -236,6 +241,62 @@ def run_full_report(test_folder, progress_callback=None):
                      f"{criteria['avg_waiting_time']*1000:<12.1f}"
                      f"{criteria['avg_response_time']*1000:<12.1f}")
     raw_data["scheduling_criteria"] = criteria_by_workers
+
+    # ---- 8. Intra-file block-level parallel compression ----
+    report("Running intra-file block-level parallel compression (Section 8)...")
+    lines.append(_section("8. INTRA-FILE BLOCK-LEVEL PARALLEL COMPRESSION (pigz-style)"))
+    lines.append("A DIFFERENT axis of parallelism than everything above: instead of "
+                  "parallelizing ACROSS many files, this splits ONE large real file into "
+                  "chunks and compresses them simultaneously - the same technique used by "
+                  "the real tool 'pigz' (parallel gzip) and by filesystems like ZFS and "
+                  "Btrfs for their multithreaded compression.\n")
+
+    if os.path.exists(LARGE_FILE_PATH):
+        os.makedirs(BLOCK_TEMP_DIR, exist_ok=True)
+
+        seq_output = os.path.join(BLOCK_TEMP_DIR, "sequential.gz")
+        seq_duration, seq_success = block_compressor.compress_file_sequential(LARGE_FILE_PATH, seq_output)
+
+        block_output = os.path.join(BLOCK_TEMP_DIR, "parallel_container.bin")
+        block_workers = min(8, cpu_cores)
+        block_duration, _ = block_compressor.compress_file_parallel_blocks(
+            LARGE_FILE_PATH, block_workers, BLOCK_TEMP_DIR, block_output
+        )
+        block_speedup = seq_duration / block_duration if block_duration > 0 else 0
+
+        restored_output = os.path.join(BLOCK_TEMP_DIR, "restored.txt")
+        decompress_duration, decompress_success = block_compressor.decompress_file_parallel_blocks(
+            block_output, BLOCK_TEMP_DIR, restored_output
+        )
+
+        def _checksum(path):
+            hasher = hashlib.md5()
+            with open(path, "rb") as f:
+                while True:
+                    chunk = f.read(65536)
+                    if not chunk:
+                        break
+                    hasher.update(chunk)
+            return hasher.hexdigest()
+
+        integrity_ok = _checksum(LARGE_FILE_PATH) == _checksum(restored_output)
+
+        size_mb = os.path.getsize(LARGE_FILE_PATH) / (1024 * 1024)
+        lines.append(f"Large file size: {size_mb:.1f} MB")
+        lines.append(f"Sequential (whole-file) compression:   {seq_duration:.3f}s")
+        lines.append(f"Block-parallel compression ({block_workers} chunks): {block_duration:.3f}s")
+        lines.append(f"Speedup: {block_speedup:.2f}x")
+        lines.append(f"Parallel decompression: {decompress_duration:.3f}s | "
+                     f"Round-trip integrity: {'VERIFIED' if integrity_ok else 'MISMATCH - BUG'}")
+
+        raw_data["block_compression"] = {
+            "sequential_duration": seq_duration, "block_duration": block_duration,
+            "speedup": block_speedup, "decompress_duration": decompress_duration,
+            "integrity_verified": integrity_ok
+        }
+    else:
+        lines.append(f"Skipped: large test file not found at {LARGE_FILE_PATH}. "
+                     "Run the setup command (Step 38) to create it first.")
 
     lines.append(_section("END OF REPORT"))
 
