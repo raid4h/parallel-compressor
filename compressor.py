@@ -1,7 +1,6 @@
 """
 Core primitive: compress ONE real file using a genuine fork()+exec()+wait()
-sequence - the exact process-creation pattern taught in the course,
-implemented directly rather than through a higher-level Python wrapper.
+sequence, implemented directly rather than through a higher-level Python wrapper.
 
 IMPORTANT SAFETY NOTE ON fork() INSIDE A MULTI-THREADED / GUI PROGRAM:
 POSIX fork() only duplicates the CALLING thread into the child - any

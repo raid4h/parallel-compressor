@@ -142,36 +142,80 @@ def run_full_report(test_folder, progress_callback=None):
     lines.append("Same real work, four different levels of abstraction over the same "
                   "underlying system calls.\n")
 
-    fork_duration, _ = compress_concurrent_fork(files, min(8, cpu_cores))
-    subprocess_duration, _ = compress_concurrent_subprocess(files, min(8, cpu_cores))
-    tpe_duration, _ = run_thread_pool_executor(files, min(8, cpu_cores))
-    ppe_duration, _ = run_process_pool_executor(files, min(8, cpu_cores))
+    fork_duration, fork_results = compress_concurrent_fork(files, min(8, cpu_cores))
+    subprocess_duration, subprocess_results = compress_concurrent_subprocess(files, min(8, cpu_cores))
+    tpe_duration, tpe_results = run_thread_pool_executor(files, min(8, cpu_cores))
+    ppe_duration, ppe_results = run_process_pool_executor(files, min(8, cpu_cores))
 
-    lines.append(f"Hand-built fork() pool:              {fork_duration:.3f}s")
-    lines.append(f"Hand-built subprocess thread pool:   {subprocess_duration:.3f}s")
-    lines.append(f"Standard ThreadPoolExecutor:         {tpe_duration:.3f}s")
-    lines.append(f"Standard ProcessPoolExecutor:         {ppe_duration:.3f}s")
+    # IMPORTANT: these four result lists have DIFFERENT shapes.
+    # fork_results / subprocess_results / tpe_results are each lists of
+    # (path, success, elapsed) - success is index [1].
+    # ppe_results is a list of (success, elapsed) ONLY - no path prefix,
+    # since it comes straight from compress_one_file() via
+    # ProcessPoolExecutor.map(), which doesn't include the path in its
+    # return value - so success is index [0] there instead. Mixing
+    # these up silently would itself be a bug worth catching.
+    fork_success = sum(1 for r in fork_results if r[1])
+    subprocess_success = sum(1 for r in subprocess_results if r[1])
+    tpe_success = sum(1 for r in tpe_results if r[1])
+    ppe_success = sum(1 for r in ppe_results if r[0])
+
+    total = len(files)
+    lines.append(f"Hand-built fork() pool:              {fork_duration:.3f}s  "
+                 f"({fork_success}/{total} succeeded)")
+    lines.append(f"Hand-built subprocess thread pool:   {subprocess_duration:.3f}s  "
+                 f"({subprocess_success}/{total} succeeded)")
+    lines.append(f"Standard ThreadPoolExecutor:         {tpe_duration:.3f}s  "
+                 f"({tpe_success}/{total} succeeded)")
+    lines.append(f"Standard ProcessPoolExecutor:         {ppe_duration:.3f}s  "
+                 f"({ppe_success}/{total} succeeded)")
+
+    # A visible, explicit warning if ANY strategy didn't fully succeed -
+    # this is exactly the kind of check that would have caught the
+    # suspiciously-fast 0.058s result immediately, instead of it
+    # silently looking like a great (but fake) optimization win.
+    for name, success_count in [("fork() pool", fork_success), ("subprocess pool", subprocess_success),
+                                  ("ThreadPoolExecutor", tpe_success), ("ProcessPoolExecutor", ppe_success)]:
+        if success_count < total:
+            lines.append(f"\n⚠ WARNING: {name} only succeeded on {success_count}/{total} files - "
+                         f"its timing above is NOT a valid comparison and should be investigated.")
+
     raw_data["executor_comparison"] = {
-        "fork_pool": fork_duration, "subprocess_pool": subprocess_duration,
-        "thread_pool_executor": tpe_duration, "process_pool_executor": ppe_duration
+        "fork_pool": {"duration": fork_duration, "success": fork_success},
+        "subprocess_pool": {"duration": subprocess_duration, "success": subprocess_success},
+        "thread_pool_executor": {"duration": tpe_duration, "success": tpe_success},
+        "process_pool_executor": {"duration": ppe_duration, "success": ppe_success}
     }
 
     # ---- 6. CPU scheduling priority race ----
-    report("Running CPU scheduling priority race...")
+    report("Running CPU scheduling priority race (3 repeats)...")
     lines.append(_section("6. CPU SCHEDULING: PRIORITY RACE (Multilevel Queue Style)"))
     lines.append("Two real priority groups (nice=0 vs nice=+15) compete CONCURRENTLY for "
-                  "the same CPU cores under real contention - mirrors the foreground/"
-                  "background dynamic of Multilevel Queue Scheduling.\n")
+                  "the same CPU cores under real contention, run 3 TIMES and reported as "
+                  "a MEDIAN - mirrors the foreground/background dynamic of Multilevel "
+                  "Queue Scheduling, backed by repeated trials rather than one run.\n")
 
-    default_dur, lowered_dur, default_tput, lowered_tput = run_priority_race(files, cpu_cores)
-    lines.append(f"Default priority (nice=0):   {default_dur:.3f}s, {default_tput:.2f} files/sec")
-    lines.append(f"Lowered priority (nice=+15): {lowered_dur:.3f}s, {lowered_tput:.2f} files/sec")
-    advantage = ((default_tput - lowered_tput) / lowered_tput * 100) if lowered_tput > 0 else 0
-    lines.append(f"Default priority throughput advantage: {advantage:.1f}%")
-    raw_data["priority_race"] = {
-        "default_duration": default_dur, "default_throughput": default_tput,
-        "lowered_duration": lowered_dur, "lowered_throughput": lowered_tput
-    }
+    priority_result = run_priority_race(files, cpu_cores, repeats=3)
+    default_tput = priority_result["default_throughput"]
+    lowered_tput = priority_result["lowered_throughput"]
+
+    lines.append(f"Default priority (nice=0):   median {default_tput:.2f} files/sec  "
+                 f"(range: {min(priority_result['all_default_throughputs']):.2f}-"
+                 f"{max(priority_result['all_default_throughputs']):.2f})")
+    lines.append(f"Lowered priority (nice=+15): median {lowered_tput:.2f} files/sec  "
+                 f"(range: {min(priority_result['all_lowered_throughputs']):.2f}-"
+                 f"{max(priority_result['all_lowered_throughputs']):.2f})")
+
+    if default_tput > lowered_tput:
+        advantage = ((default_tput - lowered_tput) / lowered_tput) * 100
+        lines.append(f"\nDefault priority: {advantage:.1f}% higher median throughput across 3 trials.")
+    else:
+        disadvantage = ((lowered_tput - default_tput) / default_tput) * 100
+        lines.append(f"\nNo default-priority advantage across 3 trials (lowered priority "
+                     f"{disadvantage:.1f}% higher) - the effect may be smaller than system "
+                     f"noise at this workload size.")
+
+    raw_data["priority_race"] = priority_result
 
     # ---- 7. Formal Scheduling Criteria ----
     report("Computing formal Scheduling Criteria...")

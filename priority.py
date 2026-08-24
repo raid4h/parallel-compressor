@@ -4,7 +4,7 @@ rather than two sequential batches (the original sequential design
 was vulnerable to page-cache and CPU-frequency-ramp-up confounds
 between the two runs, which produced a misleading result).
 
-This mirrors MULTILEVEL QUEUE SCHEDULING (Ch.5): a 'foreground' group
+This mirrors MULTILEVEL QUEUE SCHEDULING: a 'foreground' group
 of real jobs at default priority races against a 'background' group
 at deliberately lowered priority, both competing for the SAME CPU
 cores at the SAME time - not a simulated queue structure, but the
@@ -21,6 +21,7 @@ THAT thread's niceness at the moment of the fork() call.
 import os
 import time
 import threading
+import statistics
 
 from compressor import compress_one_file
 
@@ -57,79 +58,88 @@ def _priority_runner(file_paths, niceness, label, results, results_lock, event_q
     duration = time.time() - start
     return duration
 
-
-def run_priority_race(file_paths, background_threads, event_queue=None):
+def run_priority_race(file_paths, background_threads, event_queue=None, repeats=3):
     """
-    Splits file_paths into two groups (alternating assignment, so
-    both groups get a similar mix of large/small files - avoiding a
-    NEW confound where one group just happens to get easier files),
-    then races them AGAINST EACH OTHER at two different priorities,
-    at the exact same time, under the same real CPU contention.
+    Runs the concurrent priority race REPEATS times (same file split
+    each time, so we're only averaging out SYSTEM noise between
+    trials, not introducing new variables), and reports the MEDIAN
+    throughput for each priority group - a single race can be noisy
+    inside a virtualized environment like WSL2, so one run isn't
+    reliable evidence either way (as your own results showed: +5.8%,
+    +21.3%, then -0.9% across three separate single-trial runs).
     """
-    # Alternating split: group A gets even indices, group B gets odd -
-    # this keeps both groups' file-size distributions comparable,
-    # rather than e.g. splitting the sorted list in half.
     group_default = file_paths[0::2]
     group_lowered = file_paths[1::2]
 
-    stop_event = threading.Event()
-    load_threads = [threading.Thread(target=_cpu_heavy_background_load, args=(stop_event,))
-                     for _ in range(background_threads)]
-    for t in load_threads:
-        t.start()
+    default_durations = []
+    lowered_durations = []
+    default_throughputs = []
+    lowered_throughputs = []
 
-    results = []
-    results_lock = threading.Lock()
-
-    default_result = {}
-    lowered_result = {}
-
-    def run_default():
-        default_result["duration"] = _priority_runner(
-            group_default, 0, "default", results, results_lock, event_queue
-        )
-
-    def run_lowered():
-        lowered_result["duration"] = _priority_runner(
-            group_lowered, 15, "lowered", results, results_lock, event_queue
-        )
-
-    try:
-        # THE KEY FIX: both runner threads start at essentially the
-        # same moment and run CONCURRENTLY, so both experience
-        # identical system state (cache warmth, CPU frequency,
-        # background load) throughout - priority is now the ONLY
-        # variable that differs between them.
-        default_thread = threading.Thread(target=run_default)
-        lowered_thread = threading.Thread(target=run_lowered)
-
-        default_thread.start()
-        lowered_thread.start()
-
-        default_thread.join()
-        lowered_thread.join()
-    finally:
-        stop_event.set()
+    for repeat_index in range(repeats):
+        stop_event = threading.Event()
+        load_threads = [threading.Thread(target=_cpu_heavy_background_load, args=(stop_event,))
+                         for _ in range(background_threads)]
         for t in load_threads:
-            t.join()
+            t.start()
 
-    default_duration = default_result["duration"]
-    lowered_duration = lowered_result["duration"]
+        results = []
+        results_lock = threading.Lock()
+        default_result = {}
+        lowered_result = {}
 
-    # Throughput (files/sec) is the fairer comparison here, since the
-    # two groups may have gotten a very slightly different number of
-    # files depending on file_paths' length - normalizing by count
-    # avoids that becoming a hidden confound of its own.
-    default_throughput = len(group_default) / default_duration if default_duration > 0 else 0
-    lowered_throughput = len(group_lowered) / lowered_duration if lowered_duration > 0 else 0
+        def run_default():
+            default_result["duration"] = _priority_runner(
+                group_default, 0, "default", results, results_lock, event_queue
+            )
+
+        def run_lowered():
+            lowered_result["duration"] = _priority_runner(
+                group_lowered, 15, "lowered", results, results_lock, event_queue
+            )
+
+        try:
+            default_thread = threading.Thread(target=run_default)
+            lowered_thread = threading.Thread(target=run_lowered)
+
+            default_thread.start()
+            lowered_thread.start()
+
+            default_thread.join()
+            lowered_thread.join()
+        finally:
+            stop_event.set()
+            for t in load_threads:
+                t.join()
+
+        d_dur = default_result["duration"]
+        l_dur = lowered_result["duration"]
+        d_tput = len(group_default) / d_dur if d_dur > 0 else 0
+        l_tput = len(group_lowered) / l_dur if l_dur > 0 else 0
+
+        default_durations.append(d_dur)
+        lowered_durations.append(l_dur)
+        default_throughputs.append(d_tput)
+        lowered_throughputs.append(l_tput)
+
+        if event_queue:
+            event_queue.put({
+                "type": "priority_race_repeat_done", "repeat": repeat_index + 1, "repeats": repeats,
+                "default_throughput": d_tput, "lowered_throughput": l_tput
+            })
+
+    result = {
+        "default_duration": statistics.median(default_durations),
+        "lowered_duration": statistics.median(lowered_durations),
+        "default_throughput": statistics.median(default_throughputs),
+        "lowered_throughput": statistics.median(lowered_throughputs),
+        "all_default_throughputs": default_throughputs,      # raw repeats kept for transparency
+        "all_lowered_throughputs": lowered_throughputs,
+        "default_count": len(group_default),
+        "lowered_count": len(group_lowered),
+    }
 
     if event_queue:
-        event_queue.put({
-            "type": "priority_race_done",
-            "default_duration": default_duration, "default_count": len(group_default),
-            "default_throughput": default_throughput,
-            "lowered_duration": lowered_duration, "lowered_count": len(group_lowered),
-            "lowered_throughput": lowered_throughput
-        })
+        event_queue.put({"type": "priority_race_done", **result})
 
-    return default_duration, lowered_duration, default_throughput, lowered_throughput
+    return result

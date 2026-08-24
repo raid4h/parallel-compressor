@@ -32,7 +32,7 @@ def run_static_decomposition(file_paths, num_workers, event_queue=None):
     further coordination needed once started.
 
     ALSO tracks each worker's OWN finish time relative to batch
-    start, to detect and measure the CONVOY EFFECT (Ch.5): a worker
+    start, to detect and measure the CONVOY EFFECT: a worker
     stuck processing a chunk containing larger files finishes long
     after workers that happened to get smaller files - the same
     underlying idea as the FCFS lecture example ("short process stuck
