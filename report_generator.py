@@ -60,20 +60,26 @@ def run_full_report(test_folder, progress_callback=None):
     lines.append(f"Machine: {cpu_cores} CPU cores (os.cpu_count())")
 
     # ---- 1. Worker-count optimization sweep ----
-    report("Running worker-count sweep...")
+    report("Running worker-count sweep (3 repeats per configuration)...")
     lines.append(_section("1. WORKER-COUNT OPTIMIZATION SWEEP"))
     lines.append("Same real fork()+exec() compression task, run across several worker "
-                  "counts, to find the empirically fastest configuration for this machine.\n")
+                  "counts, 3 TIMES EACH, reporting the MEDIAN to reduce noise from "
+                  "virtualization/system variance - finding the empirically fastest "
+                  "configuration for this machine, backed by repeated trials rather "
+                  "than a single run.\n")
 
     worker_counts = sorted(set([1, 2, 4, cpu_cores, cpu_cores * 2]))
-    sweep_results = run_worker_sweep(files, worker_counts)
+    sweep_results = run_worker_sweep(files, worker_counts, repeats=3)
     best = find_optimal_worker_count(sweep_results)
 
-    lines.append(f"{'Workers':<10}{'Time (s)':<12}{'Avg CPU %':<12}")
+    lines.append(f"{'Workers':<10}{'Median (s)':<14}{'Range (s)':<18}{'Avg CPU %':<12}")
     for r in sweep_results:
-        lines.append(f"{r['workers']:<10}{r['duration']:<12.3f}{r['avg_cpu_utilization']:<12.1f}")
+        range_str = f"{min(r['all_durations']):.3f}-{max(r['all_durations']):.3f}"
+        lines.append(f"{r['workers']:<10}{r['duration']:<14.3f}{range_str:<18}"
+                     f"{r['avg_cpu_utilization']:<12.1f}")
     lines.append(f"\nOptimal configuration found: {best['workers']} workers "
-                 f"({best['duration']:.3f}s, {best['avg_cpu_utilization']:.1f}% CPU utilization)")
+                 f"(median {best['duration']:.3f}s, {best['avg_cpu_utilization']:.1f}% CPU "
+                 f"utilization, across {len(best['all_durations'])} repeated trials)")
     raw_data["worker_sweep"] = sweep_results
     raw_data["optimal_worker_count"] = best["workers"]
 
