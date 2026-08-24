@@ -28,18 +28,26 @@ from compressor import compress_one_file
 def run_static_decomposition(file_paths, num_workers, event_queue=None):
     """
     Splits file_paths into num_workers chunks UP FRONT using slice
-    striping (file 0 to worker 0, file 1 to worker 1, ... wrapping
-    around), then each worker processes its OWN fixed chunk with no
+    striping, then each worker processes its OWN fixed chunk with no
     further coordination needed once started.
+
+    ALSO tracks each worker's OWN finish time relative to batch
+    start, to detect and measure the CONVOY EFFECT (Ch.5): a worker
+    stuck processing a chunk containing larger files finishes long
+    after workers that happened to get smaller files - the same
+    underlying idea as the FCFS lecture example ("short process stuck
+    behind long process"), here happening because of a rigid,
+    non-adaptive up-front assignment rather than queue ordering, but
+    producing the identical symptom: idle capacity waiting behind one
+    long-running chunk while the rest of the system sits finished.
     """
     start = time.time()
 
-    # Slice striping: worker i gets every num_workers-th file,
-    # starting at index i - a simple, deterministic static split.
     chunks = [file_paths[i::num_workers] for i in range(num_workers)]
 
     results = []
     results_lock = threading.Lock()
+    worker_finish_times = {}  # worker_id -> seconds after batch start when ALL its files were done
 
     def worker(chunk, worker_id):
         for path in chunk:
@@ -51,6 +59,7 @@ def run_static_decomposition(file_paths, num_workers, event_queue=None):
                     "type": "decomposition_file_done", "strategy": "static",
                     "worker_id": worker_id, "path": path, "elapsed": elapsed
                 })
+        worker_finish_times[worker_id] = time.time() - start
 
     threads = [threading.Thread(target=worker, args=(chunks[i], i)) for i in range(num_workers)]
     for t in threads:
@@ -59,7 +68,22 @@ def run_static_decomposition(file_paths, num_workers, event_queue=None):
         t.join()
 
     duration = time.time() - start
-    return duration, results
+    return duration, results, worker_finish_times
+
+
+def compute_convoy_gap(worker_finish_times):
+    """
+    Returns the CONVOY EFFECT metric: how much longer the slowest
+    ('convoyed') worker took to finish its static chunk compared to
+    the fastest worker, which sat completely idle - having no more
+    work of its own - while waiting for the whole batch to finish.
+    """
+    fastest_id = min(worker_finish_times, key=worker_finish_times.get)
+    slowest_id = max(worker_finish_times, key=worker_finish_times.get)
+    fastest_time = worker_finish_times[fastest_id]
+    slowest_time = worker_finish_times[slowest_id]
+    gap = slowest_time - fastest_time
+    return fastest_id, fastest_time, slowest_id, slowest_time, gap
 
 
 def run_dynamic_decomposition(file_paths, num_workers, event_queue=None):
