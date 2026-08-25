@@ -59,7 +59,7 @@ an external program.
 parallel-compressor/    \
 ├── main.py entry point (GUI by default, --cli for headless)   \
 ├── gui.py results dashboard     \
-├── setup_testdata.py one-command reproducible dataset setup    \  
+├── setup_testdata.py one-command reproducible dataset setup     
 ├── compressor.py core fork()+exec()+wait() primitive    \
 ├── benchmark.py worker-count sweep + /proc/stat CPU sampling    \
 ├── pipeline.py bounded producer-consumer pipeline    \
