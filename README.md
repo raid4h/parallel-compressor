@@ -59,7 +59,7 @@ an external program.
 parallel-compressor/ \
 ├── main.py entry point (GUI by default, --cli for headless) \
 ├── gui.py results dashboard \
-├── setup_testdata.py one-command reproducible dataset setup \ 
+├── setup_testdata.py one-command reproducible dataset setup           
 ├── compressor.py core fork()+exec()+wait() primitive \
 ├── benchmark.py worker-count sweep + /proc/stat CPU sampling \
 ├── pipeline.py bounded producer-consumer pipeline \
@@ -70,16 +70,18 @@ parallel-compressor/ \
 ├── scheduling_metrics.py formal Scheduling Criteria computation \
 ├── block_compressor.py intra-file block-level parallel compression \
 ├── report_generator.py orchestrates all 8 sections into one report \
-├── test_*.py standalone verification scripts for each module \
+├── test_*.py standalone verification scripts for each module 
 
 
 ## How to run
 
-Requires a real Linux environment — on Windows, use WSL2:
-sudo apt update && sudo apt install -y python3 python3-tk gzip \
-git clone <https://github.com/raid4h/parallel-compressor> \
-cd parallel-compressor \
-python3 main.py \
+Requires a real Linux environment — on Windows, use WSL2: 
+```
+sudo apt update && sudo apt install -y python3 python3-tk gzip 
+git clone <https://github.com/raid4h/parallel-compressor> 
+cd parallel-compressor 
+python3 main.py
+``` 
 
 
 In the GUI, click **"Download Sample Dataset"** once — this downloads
@@ -101,3 +103,7 @@ real system calls, real measured optimization, and real data
 throughout, while still incorporating meaningful synchronization
 (bounded queues, semaphores) where it's genuinely needed for the task,
 not as a standalone demo.
+
+## License
+This project is licensed under the [MIT License](./LICENSE).  
+Developed for academic purposes at North South University, 2026.
