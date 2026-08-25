@@ -4,6 +4,12 @@ so we can confirm each one works correctly AND see a first rough
 timing comparison, before building the GUI or the full benchmark sweep.
 """
 
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ^ lets this test import project modules (compressor.py etc.) regardless of
+# where it's run from, now that test files live in their own tests/ folder
+
 import os
 from compressor import list_files, compress_sequential, compress_concurrent_fork, compress_concurrent_subprocess
 

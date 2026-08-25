@@ -4,6 +4,12 @@ before/during/after kernel thread counts, proving real OS threads
 are created and destroyed alongside our Python-level thread pool.
 """
 
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ^ lets this test import project modules (compressor.py etc.) regardless of
+# where it's run from, now that test files live in their own tests/ folder
+
 from thread_proof import demonstrate_real_threads
 
 if __name__ == "__main__":

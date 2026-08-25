@@ -3,6 +3,12 @@ Standalone sanity check: confirms fork()+exec()+wait() actually works
 correctly on your system before we build anything else on top of it.
 """
 
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ^ lets this test import project modules (compressor.py etc.) regardless of
+# where it's run from, now that test files live in their own tests/ folder
+
 import os
 from compressor import list_files, compress_one_file
 

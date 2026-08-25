@@ -4,6 +4,12 @@ report using the EXACT 5 official Scheduling Criteria names,
 computed from real fork()+exec() job telemetry.
 """
 
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ^ lets this test import project modules (compressor.py etc.) regardless of
+# where it's run from, now that test files live in their own tests/ folder
+
 import os
 from compressor import list_files
 from scheduling_metrics import run_instrumented_pool, compute_scheduling_criteria

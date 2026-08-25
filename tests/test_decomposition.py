@@ -7,6 +7,12 @@ here appearing as idle worker capacity stuck behind one long-running
 static chunk.
 """
 
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ^ lets this test import project modules (compressor.py etc.) regardless of
+# where it's run from, now that test files live in their own tests/ folder
+
 import os
 from compressor import list_files
 from decomposition import run_static_decomposition, run_dynamic_decomposition, compute_convoy_gap

@@ -71,8 +71,7 @@ parallel-compressor/    \
 ├── block_compressor.py intra-file block-level parallel compression   \
 ├── report_generator.py orchestrates all 8 sections into one report   \
 ├── testdata_source/ 3 real bundled books (works offline)   \
-└── test_*.py standalone verification scripts for each module
-
+└── tests/ standalone verification scripts (test_*.py) for each module
 
 ## System Requirements
 

@@ -4,6 +4,12 @@ using a deliberately SMALL queue capacity so backpressure actually
 kicks in and is visible/provable, not just theoretical.
 """
 
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ^ lets this test import project modules (compressor.py etc.) regardless of
+# where it's run from, now that test files live in their own tests/ folder
+
 import os
 from pipeline import run_pipeline
 
