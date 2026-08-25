@@ -15,7 +15,8 @@ import os
 from report_generator import run_full_report, save_report
 from gui import launch_gui
 
-DEFAULT_FOLDER = os.path.expanduser("~/parallel-compressor/testdata")
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_FOLDER = os.path.join(PROJECT_ROOT, "testdata")
 
 
 def _run_cli():

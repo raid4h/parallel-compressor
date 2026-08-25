@@ -26,8 +26,9 @@ from scheduling_metrics import run_instrumented_pool, compute_scheduling_criteri
 import hashlib
 import block_compressor
 
-LARGE_FILE_PATH = os.path.expanduser("~/parallel-compressor/testdata_large/bigfile.txt")
-BLOCK_TEMP_DIR = os.path.expanduser("~/parallel-compressor/block_temp")
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+LARGE_FILE_PATH = os.path.join(PROJECT_ROOT, "testdata_large", "bigfile.txt")
+BLOCK_TEMP_DIR = os.path.join(PROJECT_ROOT, "block_temp")
 
 
 def _section(title):
