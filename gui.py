@@ -1,14 +1,5 @@
 """
-Results DASHBOARD for the Parallel File Compressor project. Same
-underlying data as before (raw_data from run_full_report()), rendered
-as separate, large-font stat cards per section instead of one wall of
-monospace text - a dense text report is hard to read quickly,
-especially for someone seeing this project for the first time.
-
-The full raw text report is still available via a toggle button, for
-anyone who wants every exact number - this dashboard is a clearer
-FRONT-END over the exact same data, not a replacement for the
-underlying substance.
+Results DASHBOARD for the Parallel File Compressor project.
 """
 
 import os
@@ -18,11 +9,11 @@ import tkinter as tk
 from tkinter import scrolledtext, filedialog
 
 from report_generator import run_full_report, save_report
-from compressor import list_files
 from setup_testdata import run_full_setup
+from compressor import list_files
 
 # Computed relative to THIS FILE's location, not a hardcoded home
-# directory - works correctly no matter where the repo was cloned to.
+# directory - works correctly no matter where the repo is cloned to.
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FOLDER = os.path.join(PROJECT_ROOT, "testdata")
 
@@ -38,7 +29,7 @@ TITLE_FONT = ("Segoe UI", 20, "bold")
 SUBTITLE_FONT = ("Segoe UI", 10)
 SECTION_TITLE_FONT = ("Segoe UI", 13, "bold")
 STAT_LABEL_FONT = ("Segoe UI", 9)
-STAT_VALUE_FONT = ("Segoe UI", 22, "bold")  # the actual fix for "fonts aren't big enough"
+STAT_VALUE_FONT = ("Segoe UI", 22, "bold")
 BODY_FONT = ("Segoe UI", 10)
 
 
@@ -59,8 +50,6 @@ class CompressorApp:
         self._build_ui()
         self._poll_queue()
 
-    # ---------------------------------------------------------- UI setup
-
     def _build_ui(self):
         header = tk.Frame(self.root, bg=BG)
         header.pack(fill="x", padx=20, pady=(18, 8))
@@ -71,6 +60,8 @@ class CompressorApp:
                                "measured optimization on real files",
                  font=SUBTITLE_FONT, bg=BG, fg=MUTED).pack(anchor="w", pady=(2, 12))
 
+        # --- Folder row: label, then exactly ONE Choose Folder button
+        # and ONE Download Sample Dataset button, side by side. ---
         folder_row = tk.Frame(header, bg=BG)
         folder_row.pack(fill="x")
 
@@ -81,14 +72,7 @@ class CompressorApp:
         tk.Button(folder_row, text="Choose Folder...", command=self._choose_folder,
                   bg="#333333", fg=FG, relief="flat", padx=12, pady=4,
                   font=BODY_FONT, cursor="hand2").pack(side="right")
-        
-        tk.Button(folder_row, text="Choose Folder...", command=self._choose_folder,
-                  bg="#333333", fg=FG, relief="flat", padx=12, pady=4,
-                  font=BODY_FONT, cursor="hand2").pack(side="right")
 
-        # NEW: lets anyone (including a grader with an empty clone of
-        # this repo) get the exact same real test dataset with one
-        # click, no terminal needed.
         tk.Button(folder_row, text="Download Sample Dataset", command=self._download_sample_dataset,
                   bg="#333333", fg=FG, relief="flat", padx=12, pady=4,
                   font=BODY_FONT, cursor="hand2").pack(side="right", padx=(0, 8))
@@ -111,7 +95,6 @@ class CompressorApp:
                                           font=BODY_FONT, cursor="hand2", state="disabled")
         self.toggle_log_btn.pack(side="right")
 
-        # Scrollable area that holds one "card" per report section
         self.canvas = tk.Canvas(self.root, bg=BG, highlightthickness=0)
         self.scrollbar = tk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
         self.dashboard_frame = tk.Frame(self.canvas, bg=BG)
@@ -130,7 +113,6 @@ class CompressorApp:
             self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-        # Live progress log - shown WHILE running, toggleable afterward
         self.log_area = scrolledtext.ScrolledText(self.root, bg="#101010", fg=FG,
                                                      font=("Consolas", 10), relief="flat",
                                                      insertbackground="white", height=10)
@@ -152,12 +134,6 @@ class CompressorApp:
             self.folder_label.config(text=chosen)
 
     def _download_sample_dataset(self):
-        """
-        Runs setup_testdata.py's full setup on a background thread
-        (network downloads shouldn't block the GUI), logging progress
-        the same way the report generator does, then auto-selects the
-        resulting testdata/ folder once done.
-        """
         if self.running:
             return
         self.running = True
@@ -192,11 +168,7 @@ class CompressorApp:
         self.log_area.see(tk.END)
         self.log_area.config(state="disabled")
 
-    # ---------------------------------------------------------- card-building helpers
-
     def _add_card(self, title, description=None):
-        """Creates one titled card in the dashboard; returns the
-        inner frame so the caller can add stats/charts inside it."""
         card = tk.Frame(self.dashboard_frame, bg=CARD_BG)
         card.pack(fill="x", pady=(0, 14), ipady=4)
 
@@ -211,12 +183,6 @@ class CompressorApp:
         return inner
 
     def _add_stats_row(self, parent, stats):
-        """
-        stats: list of (label, value_str, color) tuples, rendered
-        side-by-side as large headline numbers - this is the actual
-        fix for 'hard to read': important numbers are now big and
-        isolated, not buried inside a paragraph of text.
-        """
         row = tk.Frame(parent, bg=CARD_BG)
         row.pack(fill="x", pady=(4, 6))
         for label, value, color in stats:
@@ -228,8 +194,6 @@ class CompressorApp:
                 .pack(anchor="w")
 
     def _draw_mini_bar_chart(self, parent, labels, values, colors, width=880, height=140):
-        """Small hand-drawn bar chart, same technique used throughout
-        this project - no external charting library."""
         canvas = tk.Canvas(parent, width=width, height=height, bg="#1c1c1c", highlightthickness=0)
         canvas.pack(pady=(6, 4))
 
@@ -253,8 +217,6 @@ class CompressorApp:
             canvas.create_text(x_center, y_bottom + 13, text=label, fill=MUTED, font=("Segoe UI", 9))
 
         return canvas
-
-    # ---------------------------------------------------------- populate from raw_data
 
     def _populate_dashboard(self, raw_data):
         for widget in self.dashboard_frame.winfo_children():
@@ -390,8 +352,6 @@ class CompressorApp:
                 ("Round-trip integrity", integrity_text, integrity_color),
             ])
 
-    # ---------------------------------------------------------- run orchestration
-
     def _poll_queue(self):
         try:
             while True:
@@ -435,13 +395,6 @@ class CompressorApp:
         if self.running:
             return
 
-    def _start_report(self):
-        if self.running:
-            return
-
-        # NEW: catch a missing folder with a clear message, instead
-        # of a raw Python crash - this is exactly what happens on a
-        # fresh clone before the sample dataset has been downloaded.
         if not os.path.isdir(self.folder_path):
             self.status_label.config(
                 text="Folder not found - click 'Download Sample Dataset' first.", fg=BAD
@@ -462,7 +415,7 @@ class CompressorApp:
         self.status_label.config(text="Starting...", fg=FG)
 
         if not self.showing_raw_log:
-            self._toggle_raw_log()  # auto-show progress while running
+            self._toggle_raw_log()
 
         def progress_callback(message):
             self.event_queue.put({"type": "progress", "message": message})
