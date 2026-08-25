@@ -56,37 +56,90 @@ Pure Python 3 standard library only — `os`, `threading`, `queue`,
 an external program.
 
 ## Project structure
-parallel-compressor/ \
-├── main.py entry point (GUI by default, --cli for headless) \
-├── gui.py results dashboard \
-├── setup_testdata.py one-command reproducible dataset setup           
-├── compressor.py core fork()+exec()+wait() primitive \
-├── benchmark.py worker-count sweep + /proc/stat CPU sampling \
-├── pipeline.py bounded producer-consumer pipeline \
-├── thread_proof.py pthreads verification via /proc/self/task/ \
-├── decomposition.py static vs dynamic task decomposition \
-├── executor_compare.py standard library pool comparison \
-├── priority.py CPU scheduling priority race \
-├── scheduling_metrics.py formal Scheduling Criteria computation \
-├── block_compressor.py intra-file block-level parallel compression \
-├── report_generator.py orchestrates all 8 sections into one report \
-├── test_*.py standalone verification scripts for each module 
+parallel-compressor/    \
+├── main.py entry point (GUI by default, --cli for headless)   \
+├── gui.py results dashboard     \
+├── setup_testdata.py one-command reproducible dataset setup    \  
+├── compressor.py core fork()+exec()+wait() primitive    \
+├── benchmark.py worker-count sweep + /proc/stat CPU sampling    \
+├── pipeline.py bounded producer-consumer pipeline    \
+├── thread_proof.py pthreads verification via /proc/self/task/    \
+├── decomposition.py static vs dynamic task decomposition   \
+├── executor_compare.py standard library pool comparison   \
+├── priority.py CPU scheduling priority race   \
+├── scheduling_metrics.py formal Scheduling Criteria computation   \
+├── block_compressor.py intra-file block-level parallel compression   \
+├── report_generator.py orchestrates all 8 sections into one report   \
+├── testdata_source/ 3 real bundled books (works offline)   \
+└── test_*.py standalone verification scripts for each module
 
+
+## System Requirements
+
+This project requires `os.fork()`, a real POSIX system call that does
+not exist on Windows — the OS you use determines what setup is needed:
+
+**macOS or Linux (native):** No extra setup needed. `os.fork()` works
+natively. Just install dependencies below and run.
+
+**Windows:** Requires WSL2 (Windows Subsystem for Linux 2), since
+`os.fork()` is not available on Windows directly.
+1. Open PowerShell and run: `wsl --install`
+2. Restart your computer when prompted
+3. Open the "Ubuntu" app from the Start menu and follow the on-screen
+   setup (create a username/password)
+4. Run all commands below inside that Ubuntu window, not PowerShell
+
+*Note: `wsl --install` requires administrator rights and a reasonably
+recent Windows 10/11 build. On a locked-down or managed machine, this
+step may not be possible — the demo video included with this
+submission covers the same results if that's the case.*
+
+### Installing dependencies
+
+Ubuntu/Debian (including WSL2):
+```
+sudo apt update && sudo apt install -y python3 python3-tk gzip git
+```
+
+Fedora:
+```
+sudo dnf install -y python3 python3-tkinter gzip git
+```
+
+Arch:
+```
+sudo pacman -S python tk gzip git
+```
+
+macOS (Homebrew Python):
+```
+brew install python-tk
+```
+(gzip and git are pre-installed on macOS)
+
+Requires Python 3.8 or newer (`python3 --version` to check).
 
 ## How to run
 
-Requires a real Linux environment — on Windows, use WSL2: 
+**Get the code** — with git:
 ```
-sudo apt update && sudo apt install -y python3 python3-tk gzip 
-git clone <https://github.com/raid4h/parallel-compressor> 
-cd parallel-compressor 
+git clone https://github.com/raid4h/parallel-compressor.git
+cd parallel-compressor
+```
+
+No git available? Click the green **"Code" → "Download ZIP"** button
+on this repo's GitHub page instead, extract it, then `cd` into the
+extracted folder.
+
+**Run it:**
+```
 python3 main.py
-``` 
+```
 
-
-In the GUI, click **"Download Sample Dataset"** once — this downloads
-3 real public-domain books from Project Gutenberg and builds the same
-63-file test corpus every result in this project was measured against.
+In the GUI, click **"Download Sample Dataset"** once — the 3 real
+source books are bundled in this repo (`testdata_source/`), so this
+works instantly and fully offline; no internet connection required.
 Then click **"Run Full Optimization Report"**.
 
 **Note:** measured timings vary slightly between runs — this is
@@ -105,5 +158,5 @@ throughout, while still incorporating meaningful synchronization
 not as a standalone demo.
 
 ## License
-This project is licensed under the [MIT License](./LICENSE).  
+This project is licensed under the [MIT License](./LICENSE).
 Developed for academic purposes at North South University, 2026.
