@@ -4,6 +4,12 @@ A Linux systems programming project demonstrating real process creation,
 CPU scheduling, and measured performance optimization — built entirely
 on genuine OS system calls (`fork()`, `exec()`, `wait()`), not simulation.
 
+## Demo Video
+
+[![Watch the demo video](https://img.youtube.com/vi/L_ock4rwQbc/maxresdefault.jpg)](https://www.youtube.com/watch?v=L_ock4rwQbc)
+
+*Click the thumbnail above to watch on YouTube.*
+
 ## What this is
 
 This project compresses real files using real, separate OS processes,
