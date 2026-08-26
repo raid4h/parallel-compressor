@@ -56,9 +56,11 @@ class CompressorApp:
 
         tk.Label(header, text="Parallel File Compressor", font=TITLE_FONT,
                  bg=BG, fg=FG).pack(anchor="w")
-        tk.Label(header, text="Real fork()+exec() process creation, real CPU scheduling, "
-                               "measured optimization on real files",
-                 font=SUBTITLE_FONT, bg=BG, fg=MUTED).pack(anchor="w", pady=(2, 12))
+        tk.Label(header, text="Tip: use 'Download Sample Dataset' for the verified 63-file test "
+                               "corpus (also builds the large single-file dataset used by Section "
+                               "8 automatically). 'Choose Folder' lets you test your OWN files instead.",
+                 font=("Segoe UI", 8), bg=BG, fg="#6a6a6a", wraplength=880, justify="left")\
+            .pack(anchor="w", pady=(0, 10))
 
         # --- Folder row: label, then exactly ONE Choose Folder button
         # and ONE Download Sample Dataset button, side by side. ---
@@ -147,7 +149,17 @@ class CompressorApp:
         def worker():
             try:
                 run_full_setup(log=log_callback)
-                self.event_queue.put({"type": "dataset_ready"})
+
+                # Confirm the large single-file dataset (used by
+                # Section 8) was actually built, and report its real
+                # size - this makes it visible that it's ready, since
+                # it's built silently as part of the same setup step
+                # rather than a separate download button.
+                large_file_path = os.path.join(PROJECT_ROOT, "testdata_large", "bigfile.txt")
+                large_file_mb = (os.path.getsize(large_file_path) / (1024 * 1024)
+                                 if os.path.exists(large_file_path) else 0)
+
+                self.event_queue.put({"type": "dataset_ready", "large_file_mb": large_file_mb})
             except Exception as e:
                 self.event_queue.put({"type": "error", "message": f"Dataset download failed: {e}"})
 
@@ -371,7 +383,11 @@ class CompressorApp:
                     self.running = False
                     self.folder_path = DEFAULT_FOLDER
                     self.folder_label.config(text=self.folder_path)
-                    self.status_label.config(text="Sample dataset ready. Click Run to begin.", fg=GOOD)
+                    large_mb = event.get("large_file_mb", 0)
+                    self.status_label.config(
+                        text=f"Ready: 63-file corpus + {large_mb:.0f}MB large file for Section 8. Click Run.",
+                        fg=GOOD
+                    )
 
                 elif event["type"] == "report_done":
                     self.running = False

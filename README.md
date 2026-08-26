@@ -139,7 +139,11 @@ python3 main.py
 In the GUI, click **"Download Sample Dataset"** once — the 3 real
 source books are bundled in this repo (`testdata_source/`), so this
 works instantly and fully offline; no internet connection required.
-Then click **"Run Full Optimization Report"**.
+Then click **"Run Full Optimization Report"**. \
+This same step also automatically builds a large, single concatenated
+file (~40MB) from the same real books, used by Section 8's intra-file
+block compression test — no separate download is needed for it; it's
+assembled locally from data already fetched, not downloaded again.
 
 **Note:** measured timings vary slightly between runs — this is
 expected, since these are real OS-level measurements (CPU scheduling,

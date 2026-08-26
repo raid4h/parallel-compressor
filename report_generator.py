@@ -127,9 +127,15 @@ def run_full_report(test_folder, progress_callback=None):
     lines.append("Same real files, same worker count, two different ways of dividing "
                   "the work - demonstrating the classic FCFS 'convoy effect'.\n")
 
-    static_duration, _, worker_finish_times = run_static_decomposition(files, min(4, cpu_cores))
+    # Cap workers by the ACTUAL number of files available - prevents
+    # a worker from ever being assigned zero files (which happened
+    # when this was tested against a small 3-file folder), which
+    # would produce a meaningless "instant finish" instead of a real
+    # convoy-effect measurement.
+    decomposition_workers = min(4, cpu_cores, len(files))
+    static_duration, _, worker_finish_times = run_static_decomposition(files, decomposition_workers)
     fastest_id, fastest_time, slowest_id, slowest_time, gap = compute_convoy_gap(worker_finish_times)
-    dynamic_duration, _, files_per_worker = run_dynamic_decomposition(files, min(4, cpu_cores))
+    dynamic_duration, _, files_per_worker = run_dynamic_decomposition(files, decomposition_workers)
 
     lines.append(f"Static:  {static_duration:.3f}s total | "
                  f"convoy gap: {gap:.3f}s (worker {fastest_id} idle while worker {slowest_id} finished)")
