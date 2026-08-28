@@ -16,20 +16,19 @@ This project compresses real files using real, separate OS processes,
 created the same way a Unix shell creates them: `fork()` duplicates the
 current process, and `exec()` replaces the child's memory image with
 the real `gzip` program. Every experiment in this project measures
-actual, reproducible performance on real data — not textbook examples
-or simulated workloads.
+actual, reproducible performance on real data — not simulated workloads.
 
 ## What it demonstrates
 
 | Section | What it shows |
 |---|---|
 | 1. Worker-Count Sweep | Finds the empirically fastest number of concurrent processes for this machine, backed by 3 repeated trials (median reported) |
-| 2. Bounded Pipeline | A real producer-consumer pattern: one thread discovers files while bounded worker threads compress them, with genuine backpressure |
-| 3. pthreads Verification | Reads `/proc/self/task/` — a real Linux kernel interface — to prove Python's threads are genuine OS-level POSIX threads |
+| 2. Bounded Pipeline | A producer-consumer pattern: one thread discovers files while bounded worker threads compress them, with genuine backpressure |
+| 3. pthreads Verification | Reads `/proc/self/task/` — a Linux kernel interface — to prove Python's threads are genuine OS-level POSIX threads |
 | 4. Task Decomposition | Compares static vs. dynamic work assignment, demonstrating the classic FCFS "convoy effect" with real numbers |
 | 5. Pool Comparison | Hand-built `fork()` pool vs. Python's standard `concurrent.futures` pools — same work, different abstraction levels |
-| 6. CPU Scheduling Priority Race | Two process groups at different `nice` priorities compete concurrently for real CPU time (Multilevel Queue-style) |
-| 7. Scheduling Criteria | The five official metrics from CPU Scheduling coursework — CPU utilization, throughput, turnaround/waiting/response time — computed from real per-job telemetry |
+| 6. CPU Scheduling Priority Race | Two process groups at different `nice` priorities compete concurrently for CPU time (Multilevel Queue-style) |
+| 7. Scheduling Criteria | The five metrics for CPU Scheduling — CPU utilization, throughput, turnaround/waiting/response time — computed from per-job telemetry |
 | 8. Block-Level Parallel Compression | Splits one large file into chunks and compresses them simultaneously — the same technique used by `pigz`, ZFS, and Btrfs, with a verified byte-for-byte round trip |
 
 ## Why fork()/exec(), and why Linux
@@ -167,5 +166,5 @@ throughout, while still incorporating meaningful synchronization
 not as a standalone demo.
 
 ## License
-This project is licensed under the [MIT License](./LICENSE).
+This project is licensed under the [MIT License](./LICENSE). \
 Developed for academic purposes at North South University, 2026.
